@@ -1,0 +1,99 @@
+# Every push to main tests the app, builds a signed APK and publishes it as a GitHub release.
+# The APK is signed with the same key every time (secret DEBUG_KEYSTORE, base64), otherwise
+# Android would refuse it as an update.
+#
+# iOS: run this workflow by hand ("Run workflow", tick "ios"). It builds an unsigned .ipa on a
+# macOS runner (10x minute cost on private repos) for sideloading with AltStore/Sideloadly.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: 'Zusätzlich iOS (.ipa, unsigniert) bauen'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.47.8
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::warning::Secret DEBUG_KEYSTORE fehlt – APK wird mit einem Wegwerf-Schlüssel signiert und installiert sich nicht als Update."
+            exit 0
+          fi
+          # Uploaded from Windows the secret may end in a CR; base64 rejects any whitespace.
+          printf '%s' "$KEYSTORE" | tr -d '\r\n\t ' | base64 -d > "$RUNNER_TEMP/trilium.keystore"
+          echo "TRILIUM_KEYSTORE=$RUNNER_TEMP/trilium.keystore" >> "$GITHUB_ENV"
+          keytool -list -v -keystore "$RUNNER_TEMP/trilium.keystore" -storepass android | grep -m1 SHA256
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build apk --release
+
+      - name: Release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep '^version:' pubspec.yaml | cut -d' ' -f2)
+          name="${version%%+*}"
+          tag="v$name-${{ github.run_number }}"
+          cp build/app/outputs/flutter-apk/app-release.apk "TriliumMobile-$name.apk"
+          gh release create "$tag" "TriliumMobile-$name.apk" \
+            --title "Trilium Mobile $name (Build ${{ github.run_number }})" \
+            --notes "Gebaut aus ${{ github.sha }}: $(git log -1 --pretty=%s)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  ios:
+    needs: android
+    if: github.event_name == 'workflow_dispatch' && inputs.ios
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign
+
+      - name: Attach unsigned .ipa to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep '^version:' pubspec.yaml | cut -d' ' -f2)
+          name="${version%%+*}"
+          mkdir Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr "TriliumMobile-$name-unsigned.ipa" Payload
+          gh release upload "${{ needs.android.outputs.tag }}" "TriliumMobile-$name-unsigned.ipa"

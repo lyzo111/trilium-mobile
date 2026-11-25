@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A small note tree: one parent note, two children. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,26H56Q60,26 60,30V40Q60,44 56,44H36Q32,44 32,40V30Q32,26 36,26Z M42,44H46V75H42Z M46,51H58V55H46Z M46,71H58V75H46Z M62,45H74Q78,45 78,49V57Q78,61 74,61H62Q58,61 58,57V49Q58,45 62,45Z M62,65H74Q78,65 78,69V77Q78,81 74,81H62Q58,81 58,77V69Q58,65 62,65Z" />
+</vector>
