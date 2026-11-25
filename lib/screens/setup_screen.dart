@@ -44,8 +44,11 @@ class _SetupScreenState extends State<SetupScreen> {
 
   Future<void> _connect() async {
     final url = EtapiClient.normalizeBaseUrl(_url.text);
-    if (url.isEmpty) {
-      setState(() => _error = 'Bitte die Server-Adresse eingeben.');
+    final parsed = Uri.tryParse(url);
+    if (url.isEmpty || parsed == null || parsed.host.isEmpty || !parsed.scheme.startsWith('http')) {
+      setState(() => _error = url.isEmpty
+          ? 'Bitte die Server-Adresse eingeben.'
+          : 'Ungültige Adresse. Beispiel: https://notes.example.com oder http://192.168.1.10:8080');
       return;
     }
     setState(() {
@@ -111,6 +114,7 @@ class _SetupScreenState extends State<SetupScreen> {
                     TextField(
                       controller: _url,
                       keyboardType: TextInputType.url,
+                      textInputAction: TextInputAction.next,
                       autocorrect: false,
                       autofillHints: const [AutofillHints.url],
                       decoration: const InputDecoration(

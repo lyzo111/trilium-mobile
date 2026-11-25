@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (state.connection == Connection.offline) {
         _start();
       } else {
-        state.syncIfDue();
+        _recheck();
       }
     }
   }
@@ -59,6 +59,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _retry?.cancel();
       // The first sync always runs; later ones only when the last is stale.
       state.store.isEmpty ? state.syncNow() : state.syncIfDue();
+    } else {
+      _scheduleRetry();
+    }
+  }
+
+  /// Back in the app while online: the server may have gone away in the meantime.
+  Future<void> _recheck() async {
+    if (await state.checkConnection(quiet: true) == Connection.online) {
+      state.syncIfDue();
     } else {
       _scheduleRetry();
     }

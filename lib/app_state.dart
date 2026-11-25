@@ -101,10 +101,13 @@ class AppState extends ChangeNotifier {
   }
 
   /// Asks the server whether it is reachable and the token still valid.
-  Future<Connection> checkConnection() async {
+  /// With [quiet] the current view stays up while checking (an open WebView keeps its page).
+  Future<Connection> checkConnection({bool quiet = false}) async {
     if (!isConfigured) return connection;
-    connection = Connection.checking;
-    notifyListeners();
+    if (!quiet) {
+      connection = Connection.checking;
+      notifyListeners();
+    }
     final c = client();
     try {
       await c.appInfo(timeout: const Duration(seconds: 6));
