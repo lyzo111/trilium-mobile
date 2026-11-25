@@ -1,0 +1,113 @@
+# Builds Trilium's own mobile app (apps/mobile in TriliumNext/Trilium) from a Trilium release.
+# That app runs the complete Trilium – UI and database – on the phone and syncs with the server
+# like the desktop app, so everything can be edited offline.
+#
+# Every day it looks for a new stable Trilium release and builds it once. The app's sync only
+# works with a server of the same sync version, so update the server and the app together.
+# A specific version can be built by hand ("Run workflow", tag e.g. v0.107.0).
+name: Official app
+
+on:
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Trilium-Tag (leer = neueste stabile Version)'
+        required: false
+        default: ''
+      force:
+        description: 'Auch bauen, wenn es das Release schon gibt'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+      build: ${{ steps.pick.outputs.build }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ]; then
+            tag=$(gh api repos/TriliumNext/Trilium/releases/latest --jq .tag_name)
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "trilium-$tag" --repo "${{ github.repository }}" >/dev/null 2>&1 && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Trilium $tag ist schon gebaut."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: TriliumNext/Trilium
+          ref: ${{ needs.check.outputs.tag }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Signing key and version
+        env:
+          KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          # Same key for every build, so each version installs as an update over the last.
+          printf '%s' "$KEYSTORE" | tr -d '\r\n\t ' | base64 -d > "$RUNNER_TEMP/release.keystore"
+          # v0.107.0 → 107000; v0.107.12 → 107012.
+          IFS=. read -r major minor patch <<< "${TAG#v}"
+          patch="${patch%%-*}"
+          {
+            echo "TRILIUM_ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore"
+            echo "TRILIUM_ANDROID_KEYSTORE_PASSWORD=android"
+            echo "TRILIUM_ANDROID_KEY_ALIAS=androiddebugkey"
+            echo "TRILIUM_ANDROID_KEY_PASSWORD=android"
+            echo "TRILIUM_ANDROID_VERSION_CODE=$(( major * 1000000 + minor * 1000 + patch ))"
+            echo "TRILIUM_ANDROID_VERSION_NAME=${TAG#v}"
+          } >> "$GITHUB_ENV"
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run chore:update-build-info
+      - name: Build the web app (UI + core as WASM)
+        run: pnpm --filter @triliumnext/mobile build
+      - run: pnpm --filter @triliumnext/mobile exec cap sync android
+
+      - name: Assemble APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk="TriliumNotes-mobile-$TAG.apk"
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk "$apk"
+          gh release delete "trilium-$TAG" --repo "${{ github.repository }}" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "trilium-$TAG" "$apk" --repo "${{ github.repository }}" \
+            --title "Trilium Notes (offizielle App) $TAG" \
+            --notes "Offizielle Trilium-Mobil-App aus TriliumNext/Trilium $TAG (apps/mobile), signiert mit dem eigenen Schlüssel. Läuft komplett offline und synchronisiert mit einem Trilium-Server derselben Version." \
+            --latest=false
