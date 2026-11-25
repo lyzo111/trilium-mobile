@@ -176,6 +176,21 @@ class _OnlineViewState extends State<OnlineView> {
     }
   }
 
+  /// On Android the WebView is drawn by the system itself (hybrid composition) instead of being
+  /// copied into a Flutter texture every frame, so scrolling feels like in the browser.
+  Widget _webView() {
+    final platform = _controller.platform;
+    if (platform is AndroidWebViewController) {
+      return WebViewWidget.fromPlatformCreationParams(
+        params: AndroidWebViewWidgetCreationParams(
+          controller: platform,
+          displayWithHybridComposition: true,
+        ),
+      );
+    }
+    return WebViewWidget(controller: _controller);
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -185,7 +200,7 @@ class _OnlineViewState extends State<OnlineView> {
       },
       child: Stack(
         children: [
-          WebViewWidget(controller: _controller),
+          _webView(),
           if (!_ready)
             Positioned.fill(
               child: ColoredBox(
