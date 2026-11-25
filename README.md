@@ -1,6 +1,39 @@
 # Trilium Mobile
 
-Mobiler Client für [Trilium Notes](https://github.com/TriliumNext/Trilium) (Android und iOS, Flutter).
+Dieses Repo liefert zwei Apps für [Trilium Notes](https://github.com/TriliumNext/Trilium):
+
+| | Offizielle App (empfohlen) | Eigene Flutter-App |
+| --- | --- | --- |
+| Release | `TriliumNotes-mobile-<tag>.apk` (Tag `trilium-v…`) | `TriliumMobile-<version>.apk` |
+| Offline | **alles lesen und bearbeiten** | nur lesen |
+| Sync | Triliums eigener Sync (beide Richtungen, wie Desktop) | Kopie vom Server per ETAPI |
+| Updates | täglicher Check auf neue Trilium-Releases, baut automatisch | Server-UI immer aktuell |
+| App-ID | `org.triliumnotes.trilium` | `de.chris.trilium` |
+
+## Offizielle App
+
+[`.github/workflows/official.yml`](.github/workflows/official.yml) baut Triliums eigene Mobil-App
+(`apps/mobile` im Trilium-Repo, Capacitor). Sie enthält die komplette Trilium-Oberfläche **und**
+den Trilium-Kern samt SQLite-Datenbank (als WebAssembly) – das Handy ist damit eine vollwertige
+Trilium-Instanz, die mit deinem Server synchronisiert. Einrichtung in der App:
+„Mit bestehendem Server verbinden“ → Server-Adresse und Passwort.
+
+- Jeden Morgen prüft der Workflow das neueste stabile Trilium-Release und baut es einmal.
+  Kein Code hier muss sich dafür ändern.
+- **Server und App müssen dieselbe Trilium-Version haben**, sonst verweigert der Sync die
+  Verbindung. Also Server aktualisieren und die neue APK installieren.
+- Eine bestimmte Version baust du per „Run workflow“ mit Tag (z. B. `v0.107.0`).
+- Die App ist bei Trilium noch nicht offiziell veröffentlicht (nur als Nightly) – also
+  experimentell. iOS baut dieser Workflow nicht.
+
+Getestet mit Trilium 0.107.0 im Emulator: Ersteinrichtung mit Server-Sync, Offline-Bearbeitung
+nach Kaltstart ohne Server, Änderung kam nach ~30 s auf dem Server an, eine auf dem Server
+angelegte Notiz nach ~1 Min. in der App.
+
+## Eigene Flutter-App
+
+Mobiler Client (Android und iOS, Flutter): online die Server-Oberfläche, offline eine
+Lese-Kopie.
 
 ## Wie die App immer auf dem neuesten Stand bleibt
 
@@ -41,7 +74,7 @@ vorhandenes ETAPI-Token (dann meldest du dich in der Web-Oberfläche einmal selb
 
 ## Releases
 
-Jeder Push auf `main` startet [`.github/workflows/build.yml`](.github/workflows/build.yml):
+Jeder Push auf `main`, der die Flutter-App ändert, startet [`.github/workflows/build.yml`](.github/workflows/build.yml):
 Analyse, Tests, signiertes Release-APK, GitHub-Release `TriliumMobile-<version>.apk`.
 Ein unsigniertes iOS-`.ipa` (zum Sideloaden) baut der Workflow bei manuellem Start mit
 Haken bei „ios“.

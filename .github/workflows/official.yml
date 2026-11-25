@@ -110,4 +110,4 @@ jobs:
           gh release create "trilium-$TAG" "$apk" --repo "${{ github.repository }}" \
             --title "Trilium Notes (offizielle App) $TAG" \
             --notes "Offizielle Trilium-Mobil-App aus TriliumNext/Trilium $TAG (apps/mobile), signiert mit dem eigenen Schlüssel. Läuft komplett offline und synchronisiert mit einem Trilium-Server derselben Version." \
-            --latest=false
+            --latest

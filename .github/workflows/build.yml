@@ -9,6 +9,8 @@ name: Build
 on:
   push:
     branches: [main]
+    # Only the Flutter app's own files; the official-app workflow has its own trigger.
+    paths: ['lib/**', 'test/**', 'android/**', 'ios/**', 'pubspec.*', '.github/workflows/build.yml']
   workflow_dispatch:
     inputs:
       ios:
