@@ -71,7 +71,7 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk "TriliumMobile-$name.apk"
           gh release create "$tag" "TriliumMobile-$name.apk" \
             --title "Trilium Mobile $name (Build ${{ github.run_number }})" \
-            --notes "Gebaut aus ${{ github.sha }}: $(git log -1 --pretty=%s)"
+            --notes "Gebaut aus ${{ github.sha }}: $(git log -1 --pretty=%s)" \n            --latest=false
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   ios:
